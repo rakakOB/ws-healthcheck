@@ -1,0 +1,15 @@
+python SyncHealthService.py install
+net start SCADASyncHealth
+
+net stop SCADASyncHealth
+python SyncHealthService.py remove
+
+--------------------------------------------------
+
+telnet <IP-of-Machine-B> 1433
+Test-NetConnection -ComputerName <IP-of-Machine-B> -Port 1433
+netstat -an | findstr 1433
+
+--------------------------------------------------
+
+sqlcmd -S localhost\SQLEXPRESS -U sa -P YourStrong!Passw0rd -Q "SELECT 1"

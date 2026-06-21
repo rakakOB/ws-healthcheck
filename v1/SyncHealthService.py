@@ -1,4 +1,5 @@
 import time
+import sys
 import logging
 import os
 import threading
@@ -13,7 +14,7 @@ import servicemanager
 
 # ========== CONFIGURATION – CHANGE FOR EACH MACHINE ==========
 # Remote server (the OTHER machine)
-REMOTE_HOST = '192.168.1.101'      # IP of Machine B on Machine A, and IP of Machine A on Machine B
+REMOTE_HOST = '192.168.0.165'      # IP of Machine B on Machine A, and IP of Machine A on Machine B
 REMOTE_PORT = 1433
 
 # Local database (on this machine)
@@ -21,7 +22,7 @@ LOCAL_DB = {
     'server': 'localhost',
     'port': 1433,
     'user': 'sa',
-    'password': 'YourStrong!Passw0rd',
+    'password': 'rak!@#123',
     'database': 'SCADA_Historian'
 }
 
@@ -59,7 +60,7 @@ class HealthMonitor:
                 server=REMOTE_HOST,
                 port=REMOTE_PORT,
                 user='sa',
-                password='YourStrong!Passw0rd',
+                password='administrator123',
                 database='master',
                 login_timeout=3,
                 timeout=3
@@ -153,11 +154,15 @@ class SyncHealthService(win32serviceutil.ServiceFramework):
 
 
 if __name__ == '__main__':
-    # For testing: run directly with python SyncHealthService.py
-    # (doesn't require installation as a service)
-    monitor = HealthMonitor()
-    try:
-        monitor.run()
-    except KeyboardInterrupt:
-        monitor.stop()
-        
+    # When run with 'install', 'start', 'stop', etc. it will handle service control
+    # When run with no arguments, it will start the service (if installed) or run interactively
+    if len(sys.argv) == 1:
+        # No arguments – run in interactive mode for debugging
+        monitor = HealthMonitor()
+        try:
+            monitor.run()
+        except KeyboardInterrupt:
+            monitor.stop()
+    else:
+        # Service installation/removal commands
+        win32serviceutil.HandleCommandLine(SyncHealthService)

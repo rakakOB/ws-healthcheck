@@ -1,0 +1,92 @@
+1. Database Structure
+
+2. Final sync_service.py
+
+3. How the Database is Structured
+Each SQL Server instance (PRIMARY on port 1433, SECONDARY on port 1434) contains, 
+the identical database scada_historian with four tables:
+
+Table and it's Purpose
+
+SensorReadings:	Holds all sensor data inserted by the SCADA simulator. Each row has a unique RowGUID,
+a TagID, a Timestamp, a Value, and a Quality flag.
+
+OutageLog: Records when the other server becomes unreachable. For PRIMARY, ServerName = 'SECONDARY'; 
+for SECONDARY, ServerName = 'PRIMARY'. Stores start, end, rows missed, and sync status.
+
+SyncLog: Append‑only history of every sync or checkpoint. The SyncTimestamp column is the data timestamp
+up to which the server is synchronised. SyncType can be 'RECOVERY' (after outage), 'GAP' (micro‑gap fix), 
+or 'PERIODIC' (6‑hour checkpoint).
+
+RecoveryAudit: Stores a copy of every row that was recovered during a RECOVERY sync, linked to the corresponding OutageID. 
+Lives in the source database (where the outage log is).
+
+4. How the Sync Service Works – End‑to‑End Flowchart
+The sync service runs as a single Python process (or Windows Service). It has one main loop that executes every 60 seconds.
+
+START
+  │
+  ▼
+LOOP (every 60 seconds)
+  │
+  ├─► Check PRIMARY is online?   (SELECT 1 on port 1433)
+  ├─► Check SECONDARY is online? (SELECT 1 on port 1434)
+  │
+  ├───────────────────────────────────────────────────────┐
+  │  A) PRIMARY perspective (monitoring SECONDARY)        │
+  │                                                       │
+  │  Is SECONDARY offline?                                │
+  │    YES → fail_count++                                 │
+  │           if fail_count >= 1 and not already OFFLINE: │
+  │             status = OFFLINE                          │
+  │             log "SECONDARY OFFLINE"                   │
+  │             insert OutageLog in PRIMARY               │
+  │    NO  → if previously OFFLINE (transition):          │
+  │             status = ONLINE                           │
+  │             log "SECONDARY back ONLINE"               │
+  │             call sync_data(PRIMARY→SECONDARY,         │
+  │                             outage_id, 'RECOVERY')    │
+  │             close OutageLog in PRIMARY                │
+  │           else:                                       │
+  │             status = ONLINE                           │
+  │             log "SECONDARY ONLINE"                    │
+  │           fail_count = 0                              │
+  │                                                       │
+  ├───────────────────────────────────────────────────────┤
+  │  B) SECONDARY perspective (monitoring PRIMARY)        │
+  │     (mirror image of A)                               │
+  │                                                       │
+  ├───────────────────────────────────────────────────────┤
+  │  C) If BOTH servers are ONLINE:                       │
+  │     1. Gap detection:                                 │
+  │        max_primary = MAX(Timestamp) PRIMARY           │
+  │        max_secondary = MAX(Timestamp) SECONDARY       │
+  │        if max_primary > max_secondary:                │
+  │            silent sync PRIMARY → SECONDARY (GAP)      │
+  │        if max_secondary > max_primary:                │
+  │            silent sync SECONDARY → PRIMARY (GAP)      │
+  │                                                       │
+  │     2. Periodic checkpoint (only at hours 0,6,12,18): │
+  │        safe_ts = min(max_primary, max_secondary)      │
+  │        if safe_ts > current SyncLog max:              │
+  │            insert SyncLog entry (PERIODIC)            │
+  │                                                       │
+  └───────────────────────────────────────────────────────┘
+  │
+  └──► sleep 60 seconds (or until stop)
+
+Key points in the flow:
+Debounce is set to 1, so a single failed check immediately triggers OFFLINE.
+Recovery sync uses the SyncLog of the target (recovered) server to know from where to pull missing rows.
+Gap sync catches micro‑outages that didn’t last long enough to be flagged as OFFLINE.
+Periodic checkpoint keeps the SyncLog bookmark fresh, limiting future recovery scans to a few hours at most.
+
+5. Important Details for Documentation
+Simulator writes to both DBs simultaneously using RowGUIDs. This ensures duplicate‑free merges.
+All sync operations use RowGUID to check if a row already exists before inserting – idempotent and safe.
+RecoveryAudit is stored in the source database (where the outage log is) to avoid foreign‑key violations.
+Log files (primary_logs.log, secondary_logs.log) and database tables (OutageLog, SyncLog, RecoveryAudit) provide a complete audit trail.
+No threading is used in this version; the single loop is sufficient and simpler for the current scale.
+Resilience is guaranteed for outages of any length: the SyncLog bookmark is never lost and always predates the outage.
+
+

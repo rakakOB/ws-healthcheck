@@ -79,5 +79,28 @@ CREATE TABLE OutageLog (
 -- Insert the single SyncState row
 INSERT INTO SyncState (Id, LastSyncTimestamp) VALUES (1, '2000-01-01');
 
+-- ======================================================
+-- Testing
+-- ======================================================
+
 use SCADA_Historian;
+select * from AnalogValues;
+select * from DigitalValues;
 select * from SyncState;
+select * from OutageLog;
+
+
+use SCADA_Config;
+select * from sites;
+select * from EngineeringUnits;
+select * from Tags;
+
+use SCADA_Historian;
+--Delete row from AnalogValues where RowGUID = fe662788-6dda-415c-bfb9-fbfe4a87ec85;
+DELETE FROM AnalogValues 
+WHERE RowGUID = 'fe662788-6dda-415c-bfb9-fbfe4a87ec85';
+select * from AnalogValues with (NOLOCK);
+select * from AnalogValues order by Timestamp;
+
+select * from AnalogValues;
+select * from DigitalValues;

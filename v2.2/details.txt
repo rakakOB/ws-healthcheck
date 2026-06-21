@@ -1,0 +1,20 @@
+python SyncHealthService.py install
+net start SCADASyncHealth
+
+net stop SCADASyncHealth
+python SyncHealthService.py remove
+
+--------------------------------------------------
+
+telnet 192.168.0.154 1433
+Test-NetConnection -ComputerName 192.168.0.154 -Port 1433
+netstat -an | findstr 1433
+
+telnet 192.168.0.154 1434
+Test-NetConnection -ComputerName 192.168.0.154 -Port 1434
+netstat -an | findstr 1434
+
+--------------------------------------------------
+
+sqlcmd -S localhost\SQLEXPRESS -U sa -P rak!@#123 -Q "SELECT 1"
+sqlcmd -S localhost\SECONDARY -U sa -P rak!@#123 -Q "SELECT 1"
