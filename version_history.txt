@@ -1,0 +1,26 @@
+version 1:
+- Initial concept and research. Defined the requirements: two SQL servers, a SCADA simulator, and a Windows‑Service‑like daemon for health checks, sync, and logging. 
+- Initially was planning on using dockers, didn't go with it: since dockers are linux like containers.
+
+version 2:
+- And so with having two different MSSQL DBMS instances at 1433 and 1434, was implementing syncronization of the databases. 
+- with separate unique diffenent data being dumped into the Databases.
+- single ws script was being used to implement syschronization for both primary and secondary.
+
+version 2.2:
+- continued working on the same setup of the instances of the MSSQL Databases.
+- this time a same and common data was being dumped into the databases.
+- simulating the actual use case of the problem of the outages for the respective databases.
+- single ws script was being used to implement syschronization for both primary and secondary.
+- carried out and overcame any and every race conditions on the same ws script.
+
+version 3:
+- Same as above. Unlike version_2: this doesn't overcome any of the race conditions (30 seconds window problem.)
+- Since the idea was that, data would be dumped in the databases at an fixed specific time every day, and the outages will be manipulated by the technicians during maintainance or any other use cases.
+
+version 4:
+- same as above unlike version_3: deviced separate ws scripts to handle: primary and the secondary databases.
+- Distributed design. One WS script per server (ws_primary.py and ws_secondary.py).
+- Each monitors only the remote server and manages its own local database.
+- The logic is identical to V3 but split into two independent processes.
+- This mirrors the intended production deployment on two separate physical machines.
