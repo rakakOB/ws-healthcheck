@@ -19,7 +19,7 @@ import win32service
 import win32event
 
 # ================== CONFIGURATION ==================
-SA_PASSWORD = 'YourStrong!Passw0rd'
+SA_PASSWORD = 'rak!@#123'
 
 LOCAL_DB = {
     'server': 'localhost',
@@ -233,6 +233,7 @@ class SecondaryService(win32serviceutil.ServiceFramework):
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
+        #
         monitor = SecondaryMonitor()
         try:
             monitor.run()

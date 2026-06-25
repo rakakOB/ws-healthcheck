@@ -1,25 +1,12 @@
-"""
-Primary WS Service – Monitors SECONDARY (port 1434)
-Install : python ws_primary.py install
-Start   : net start SCADAPrimaryWS
-Stop    : net stop SCADAPrimaryWS
-Remove  : python ws_primary.py remove
-"""
-
-import sys
-import time
+import pymssql
 import logging
 import os
-import threading
-import pymssql
+import time
 from datetime import datetime
+import threading
 
-import win32serviceutil
-import win32service
-import win32event
-
-# ================== CONFIGURATION ==================
-SA_PASSWORD = 'rak!@#123'
+# ================== CONFIGURATION FOR PRIMARY SERVER ==================
+SA_PASSWORD = 'YourStrong!Passw0rd'
 
 LOCAL_DB = {
     'server': 'localhost',
@@ -67,6 +54,7 @@ def is_db_online(db_config):
         return False
 
 def log_outage_event(event_type):
+    """Insert offline/online event into local OutageLog."""
     try:
         conn = pymssql.connect(**LOCAL_DB, autocommit=True)
         cursor = conn.cursor()
@@ -80,24 +68,8 @@ def log_outage_event(event_type):
     except Exception as e:
         logger.error(f"Failed to log outage event: {e}")
 
-def get_last_outage_event():
-    try:
-        conn = pymssql.connect(**LOCAL_DB, autocommit=True)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT ServerEvents, EventDateTime FROM OutageLog "
-            "WHERE ServerName = %s ORDER BY EventDateTime DESC",
-            (MONITORED_SERVER_NAME,)
-        )
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return row[0], row[1]
-        return None, None
-    except:
-        return None, None
-
 def capture_rows(outage_start):
+    """Copy new SensorReadings rows into local SyncRecordsStatus with SyncSuccess=0."""
     try:
         conn = pymssql.connect(**LOCAL_DB, autocommit=True)
         cursor = conn.cursor()
@@ -119,6 +91,7 @@ def capture_rows(outage_start):
         return 0
 
 def sync_to_remote():
+    """Push unsynced rows from local SyncRecordsStatus to remote SensorReadings, then mark synced."""
     try:
         local_conn = pymssql.connect(**LOCAL_DB, autocommit=True)
         local_cursor = local_conn.cursor()
@@ -150,6 +123,7 @@ def sync_to_remote():
         remote_conn.commit()
         remote_conn.close()
 
+        # Mark as synced locally
         local_cursor.execute("UPDATE SyncRecordsStatus SET SyncSuccess = 1 WHERE SyncSuccess = 0")
         local_conn.commit()
         local_conn.close()
@@ -160,19 +134,12 @@ def sync_to_remote():
         logger.error(f"Sync to remote failed: {e}")
         return 0
 
-# ================== MONITOR ==================
+# ================== MAIN MONITOR ==================
 class PrimaryMonitor:
     def __init__(self):
-        last_event, last_time = get_last_outage_event()
-        if last_event == 'offline':
-            self.remote_status = -1
-            self.outage_start = last_time
-            logger.warning(f"Startup: {MONITORED_SERVER_NAME} was OFFLINE since {self.outage_start}. Resuming capture.")
-        else:
-            self.remote_status = 0
-            self.outage_start = None
-            logger.info(f"Startup: assuming {MONITORED_SERVER_NAME} is ONLINE (will verify).")
+        self.remote_status = 0          # 1=online, -1=offline
         self.fail_count = 0
+        self.outage_start = None
         self._stop = threading.Event()
 
     def run(self):
@@ -191,6 +158,7 @@ class PrimaryMonitor:
                     capture_rows(self.outage_start)
             else:
                 if self.fail_count >= DEBOUNCE_THRESHOLD and self.remote_status == -1:
+                    # Transition: offline -> online
                     self.remote_status = 1
                     logger.info(f"{MONITORED_SERVER_NAME} is back ONLINE.")
                     log_outage_event('online')
@@ -207,37 +175,9 @@ class PrimaryMonitor:
     def stop(self):
         self._stop.set()
 
-# ================== WINDOWS SERVICE ==================
-class PrimaryService(win32serviceutil.ServiceFramework):
-    _svc_name_ = 'SCADAPrimaryWS'
-    _svc_display_name_ = 'SCADA Primary WS'
-
-    def __init__(self, args):
-        win32serviceutil.ServiceFramework.__init__(self, args)
-        self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-        self.monitor = PrimaryMonitor()
-        self.thread = None
-
-    def SvcStop(self):
-        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        self.monitor.stop()
-        if self.thread:
-            self.thread.join()
-        win32event.SetEvent(self.hWaitStop)
-
-    def SvcDoRun(self):
-        self.ReportServiceStatus(win32service.SERVICE_RUNNING)
-        self.thread = threading.Thread(target=self.monitor.run)
-        self.thread.start()
-        win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
-
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        # Run interactively
-        monitor = PrimaryMonitor()
-        try:
-            monitor.run()
-        except KeyboardInterrupt:
-            monitor.stop()
-    else:
-        win32serviceutil.HandleCommandLine(PrimaryService)
+    monitor = PrimaryMonitor()
+    try:
+        monitor.run()
+    except KeyboardInterrupt:
+        monitor.stop()
