@@ -1,4 +1,3 @@
---------------------------------------------------
 
 USE scada_historian;
 select * from SensorReadings order by Timestamp;
@@ -71,11 +70,6 @@ CREATE TABLE SyncRecordsStatus (
 GO
 
 -- -----------------------------------------------------
-
-use scada_historian;
-DROP TABLE IF EXISTS SensorReadings;
-DROP TABLE IF EXISTS OutageLog;
-DROP TABLE IF EXISTS SyncRecordsStatus;
 
 use scada_historian;
 select * from SensorReadings order by SensorTimestamp;

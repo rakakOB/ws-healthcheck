@@ -167,12 +167,13 @@ class PrimaryMonitor:
         if last_event == 'offline':
             self.remote_status = -1
             self.outage_start = last_time
+            self.fail_count = 1                  # ← ensures transition detected immediately
             logger.warning(f"Startup: {MONITORED_SERVER_NAME} was OFFLINE since {self.outage_start}. Resuming capture.")
         else:
             self.remote_status = 0
             self.outage_start = None
+            self.fail_count = 0
             logger.info(f"Startup: assuming {MONITORED_SERVER_NAME} is ONLINE (will verify).")
-        self.fail_count = 0
         self._stop = threading.Event()
 
     def run(self):
@@ -241,3 +242,4 @@ if __name__ == '__main__':
             monitor.stop()
     else:
         win32serviceutil.HandleCommandLine(PrimaryService)
+        

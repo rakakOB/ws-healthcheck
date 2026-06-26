@@ -29,7 +29,16 @@ The project simulates a real‑world SCADA environment: a data simulator continu
 
 ## Architecture Overview
 
+
+**System Architecture:**
+
 ![System Architecture](docs/architecture_diagram.png)
+
+
+**Comprehensive System Flowchart:**
+
+![Comprehensive System Flowchart](docs/comprehensive_system_flowchart.png)
+
 
 **Components:**
 
